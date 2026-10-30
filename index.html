@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="uk" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор бейджів DC3 Outsort</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QRCode.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- PapaParse for CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- SheetJS for XLSX/XLS Support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#ecfeff',
+                            100: '#cffaff',
+                            400: '#22d3ee',
+                            500: '#06b6d4',
+                            600: '#0891b2',
+                            700: '#0e7490',
+                            900: '#164e63',
+                        },
+                        dark: {
+                            950: '#090d16',
+                            900: '#0f172a',
+                            850: '#131e32',
+                            800: '#1e293b',
+                            700: '#334155'
+                        }
+                    },
+                    boxShadow: {
+                        'neon': '0 0 20px -3px rgba(6, 182, 212, 0.35)',
+                        'glow': '0 0 35px -5px rgba(14, 165, 233, 0.25)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Exact A4 Landscape setup for Print & PDF */
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0891b2;
+        }
+
+        /* Screen Preview Styling: A4 Landscape (297mm x 210mm) */
+        .a4-page {
+            width: 297mm;
+            height: 210mm;
+            padding: 8mm 9mm;
+            background: #ffffff;
+            margin: 0 auto 32px auto;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            box-sizing: border-box;
+            position: relative;
+            color: #000000;
+            page-break-after: always;
+            break-after: page;
+            border-radius: 4px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        /* 10 Vertical Badges Grid on A4 Landscape: 5 columns x 2 rows */
+        .badges-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 52mm);
+            grid-template-rows: repeat(2, 92mm);
+            gap: 6mm 4mm;
+            justify-content: center;
+            align-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Single Vertical Badge (52mm x 92mm fit for 5x2 landscape grid) */
+        .badge {
+            width: 52mm;
+            height: 92mm;
+            border: 1.5pt solid #000000;
+            border-radius: 6px;
+            padding: 2.5mm;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
+            color: #000000;
+            font-family: 'Inter', Arial, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .badge-header {
+            display: flex;
+            border: 1.5pt solid #000000;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 7.5mm;
+            width: 100%;
+            flex-shrink: 0;
+        }
+
+        .badge-header .dc3-box {
+            width: 38%;
+            font-weight: 900;
+            font-size: 11pt;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1.5pt solid #000000;
+            background: #ffffff;
+            color: #000000;
+            letter-spacing: -0.5px;
+        }
+
+        .badge-header .outsort-box {
+            width: 62%;
+            font-size: 10.5pt;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: lowercase;
+            background: #ffffff;
+            color: #000000;
+            letter-spacing: -0.2px;
+        }
+
+        .badge-user-info {
+            text-align: center;
+            margin: 1mm 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            min-height: 10mm;
+        }
+
+        .badge-name {
+            font-size: 10pt;
+            font-weight: 700;
+            line-height: 1.15;
+            word-break: break-word;
+            max-width: 100%;
+            color: #000000;
+        }
+
+        .badge-id {
+            font-size: 9.5pt;
+            font-weight: 800;
+            margin-top: 0.5mm;
+            letter-spacing: 0.5px;
+            color: #000000;
+        }
+
+        .qr-section-top {
+            border: 1.5pt solid #000000;
+            border-radius: 5px;
+            height: 39mm;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1mm;
+            background: #ffffff;
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+
+        .qr-section-bottom {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border: 1.5pt solid #000000;
+            border-radius: 5px;
+            overflow: hidden;
+            height: 25mm;
+            width: 100%;
+            flex-shrink: 0;
+        }
+
+        .qr-sub-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5mm;
+            background: #ffffff;
+        }
+
+        .qr-sub-box:first-child {
+            border-right: 1.5pt solid #000000;
+        }
+
+        .qr-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-container img, .qr-container canvas {
+            display: block;
+            margin: 0 auto;
+        }
+
+        .qr-label {
+            font-size: 7.5pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-top: 0.8mm;
+            line-height: 1;
+            letter-spacing: 0.5px;
+            color: #000000;
+        }
+
+        /* Glassmorphism Classes */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-header {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Drop Zone Drag Effect */
+        .drop-zone-active {
+            border-color: #22d3ee !important;
+            background: rgba(6, 182, 212, 0.12) !important;
+            transform: scale(1.01);
+        }
+
+        /* PRINT MEDIA STYLES - DO NOT ALTER GEOMETRY */
+        @media print {
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            #preview-container {
+                padding: 0 !important;
+                margin: 0 !important;
+                background: transparent !important;
+                overflow: visible !important;
+                display: block !important;
+            }
+
+            .a4-page {
+                margin: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                padding: 8mm 9mm !important;
+                width: 297mm !important;
+                height: 210mm !important;
+                border-radius: 0 !important;
+            }
+        }
+    </style>
+
+    <!-- Firebase Modular Setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'dc3-badge-generator';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "demo-api-key",
+            authDomain: "demo-app.firebaseapp.com",
+            projectId: "demo-app",
+            storageBucket: "demo-app.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        window.db = db;
+        window.appId = appId;
+        window.auth = auth;
+
+        // Init Auth Status
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                console.log("Firebase Auth Success");
+            } catch (err) {
+                console.error("Auth init error:", err);
+            }
+        }
+
+        initAuth();
+    </script>
+</head>
+<body class="bg-dark-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white">
+
+    <!-- Auth Overlay (When not logged in or pending) -->
+    <div id="auth-overlay" class="fixed inset-0 z-50 bg-dark-950/95 backdrop-blur-xl flex items-center justify-center p-4">
+        
+        <!-- Auth Form Box -->
+        <div id="auth-box" class="glass-panel max-w-md w-full p-6 sm:p-8 rounded-2xl border border-slate-700/80 shadow-2xl relative overflow-hidden">
+            <div class="absolute -top-16 -right-16 w-36 h-36 bg-brand-500/20 rounded-full blur-3xl"></div>
+            
+            <div class="text-center mb-6">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-sky-400 text-white flex items-center justify-center text-xl font-black mx-auto mb-3 shadow-neon">
+                    DC3
+                </div>
+                <h2 class="text-xl font-bold text-white tracking-tight" id="auth-title">Вхід у систему</h2>
+                <p class="text-xs text-slate-400 mt-1" id="auth-subtitle">Введіть ваш ID та пароль для доступу</p>
+            </div>
+
+            <!-- LOGIN FORM -->
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">ID користувача</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-id-card absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                        <input type="text" id="login-id" required placeholder="Наприклад: admin або 60121553"
+                               class="w-full bg-dark-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Пароль</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                        <input type="password" id="login-pass" required placeholder="••••••••"
+                               class="w-full bg-dark-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-2.5 px-4 bg-gradient-to-r from-brand-500 to-sky-600 hover:from-brand-400 hover:to-sky-500 text-white font-bold text-xs rounded-xl shadow-neon transition duration-200">
+                    Увійти
+                </button>
+
+                <div class="text-center pt-2">
+                    <button type="button" onclick="switchAuthTab('register')" class="text-xs text-brand-400 hover:text-brand-300 font-medium transition">
+                        Немає акаунту? Зареєструватись
+                    </button>
+                </div>
+            </form>
+
+            <!-- REGISTER FORM -->
+            <form id="register-form" onsubmit="handleRegister(event)" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Створити ID користувача</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user-plus absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                        <input type="text" id="reg-id" required placeholder="Ваш ID (напр. 60129999)"
+                               class="w-full bg-dark-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Пароль</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-key absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                        <input type="password" id="reg-pass" required placeholder="Мінімум 6 символів"
+                               class="w-full bg-dark-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Підтвердження пароля</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-check-double absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                        <input type="password" id="reg-pass-confirm" required placeholder="Повторіть пароль"
+                               class="w-full bg-dark-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg transition duration-200">
+                    Надіслати запит на реєстрацію
+                </button>
+
+                <div class="text-center pt-2">
+                    <button type="button" onclick="switchAuthTab('login')" class="text-xs text-brand-400 hover:text-brand-300 font-medium transition">
+                        Вже є акаунт? Увійти
+                    </button>
+                </div>
+            </form>
+
+            <!-- PENDING STATUS SCREEN -->
+            <div id="pending-box" class="text-center py-6 space-y-4 hidden">
+                <div class="w-16 h-16 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto text-2xl animate-pulse">
+                    <i class="fa-solid fa-clock font-bold"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white">Очікує підтвердження</h3>
+                    <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">Ваш запит на реєстрацію надіслано адміністратору. Очікуйте на схвалення доступу.</p>
+                </div>
+                <button onclick="logout()" class="px-4 py-2 text-xs font-semibold bg-dark-800 hover:bg-dark-700 text-slate-300 rounded-xl border border-slate-700 transition">
+                    <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Вийти
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Header (No Print) -->
+    <header class="no-print glass-header sticky top-0 z-40 transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            
+            <!-- Logo & Title -->
+            <div class="flex items-center space-x-3.5">
+                <div class="relative group">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-brand-500 to-sky-600 rounded-xl blur opacity-60 group-hover:opacity-100 transition duration-300"></div>
+                    <div class="relative bg-dark-950 text-brand-400 border border-brand-500/30 px-3 py-1.5 rounded-xl font-black text-xl tracking-wider shadow-inner flex items-center gap-1.5">
+                        <i class="fa-solid fa-id-badge text-brand-400"></i>
+                        <span>DC3</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-bold text-base sm:text-lg text-white leading-tight tracking-tight">Генератор бейджів Outsort</h1>
+                        <span class="bg-brand-500/10 text-brand-400 border border-brand-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">A4 Альбомний</span>
+                    </div>
+                    <p class="text-xs text-slate-400 hidden sm:block">Сітка 5×2 • 10 вертикальних карт (52×92мм) на аркуш</p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center flex-wrap gap-2.5">
+                <!-- User Profile badge -->
+                <div class="flex items-center gap-2 bg-dark-900 border border-slate-700/80 px-3 py-1.5 rounded-xl text-xs text-slate-300">
+                    <i class="fa-solid fa-user-circle text-brand-400 text-sm"></i>
+                    <span id="current-user-display" class="font-bold text-white">Guest</span>
+                    <button onclick="logout()" title="Вийти" class="ml-1 text-slate-500 hover:text-rose-400 transition">
+                        <i class="fa-solid fa-power-off text-xs"></i>
+                    </button>
+                </div>
+
+                <!-- Admin Panel Button (Hidden for non-admins) -->
+                <button id="admin-panel-btn" onclick="toggleAdminModal(true)" class="hidden px-3.5 py-2 text-xs font-semibold bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 rounded-xl border border-purple-500/40 transition flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-user-shield text-purple-400 text-sm"></i> 
+                    <span>Кабінет Адміна</span>
+                </button>
+
+                <button onclick="downloadSampleCSV()" class="px-3.5 py-2 text-xs font-semibold bg-dark-800 hover:bg-dark-700 text-slate-300 hover:text-white rounded-xl border border-slate-700/80 hover:border-slate-600 transition-all duration-200 flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-file-csv text-emerald-400 text-sm"></i> 
+                    <span>Шаблон CSV</span>
+                </button>
+                <button onclick="toggleInstructionModal(true)" class="px-3.5 py-2 text-xs font-semibold bg-dark-800 hover:bg-dark-700 text-amber-300 hover:text-amber-200 rounded-xl border border-amber-500/30 hover:border-amber-500/50 transition-all duration-200 flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-book-open text-amber-400 text-sm"></i> 
+                    <span>Інструкція</span>
+                </button>
+                <button onclick="triggerPrint()" class="px-4 py-2 text-xs sm:text-sm font-bold bg-gradient-to-r from-brand-500 to-sky-600 hover:from-brand-400 hover:to-sky-500 text-white rounded-xl shadow-neon transition-all duration-300 flex items-center gap-2 transform active:scale-95">
+                    <i class="fa-solid fa-print"></i> 
+                    <span>Друк / PDF</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Controls Sidebar (No Print) -->
+        <div class="no-print lg:col-span-5 space-y-5">
+
+            <!-- Card 1: Import & Upload -->
+            <div class="glass-panel rounded-2xl p-5 shadow-2xl relative overflow-hidden group">
+                <div class="absolute -top-12 -right-12 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl group-hover:bg-brand-500/20 transition-all"></div>
+                
+                <h2 class="text-sm font-bold text-white mb-3.5 flex items-center justify-between">
+                    <span class="flex items-center gap-2.5">
+                        <span class="w-7 h-7 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center text-xs">
+                            <i class="fa-solid fa-file-import"></i>
+                        </span>
+                        Завантаження даних
+                    </span>
+                    <span class="text-[11px] text-slate-400 font-normal">Excel / CSV</span>
+                </h2>
+                
+                <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-brand-400 bg-dark-900/40 hover:bg-dark-900/70 rounded-xl p-5 text-center cursor-pointer transition-all duration-300 relative">
+                    <input type="file" id="csv-file-input" accept=".csv,.xlsx,.xls,.txt" class="hidden">
+                    <div class="w-12 h-12 rounded-full bg-brand-500/10 text-brand-400 flex items-center justify-center mx-auto mb-3 shadow-inner">
+                        <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                    </div>
+                    <p class="text-xs sm:text-sm text-slate-200 font-semibold">Перетягніть Excel або CSV файл сюди</p>
+                    <p class="text-[11px] text-slate-400 mt-1">або натисніть для вибору з пристрою</p>
+                    <div class="flex items-center justify-center gap-2 mt-3">
+                        <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-medium">.XLSX</span>
+                        <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-medium">.XLS</span>
+                        <span class="text-[10px] text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 font-medium">.CSV</span>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex justify-between items-center text-xs text-slate-400 px-1">
+                    <div class="flex items-center gap-1.5 font-medium">
+                        <i class="fa-solid fa-users text-brand-400"></i>
+                        <span id="record-count">Записів: 0</span>
+                    </div>
+                    <button onclick="clearAllData()" class="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2.5 py-1 rounded-lg transition-all duration-200 flex items-center gap-1.5">
+                        <i class="fa-solid fa-trash-can text-xs"></i> Очистити все
+                    </button>
+                </div>
+            </div>
+
+            <!-- Card 2: Manual Data Entry & Table -->
+            <div class="glass-panel rounded-2xl p-5 shadow-2xl flex flex-col h-[520px] relative">
+                
+                <!-- Table Header Controls -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <h2 class="text-sm font-bold text-white flex items-center gap-2.5">
+                        <span class="w-7 h-7 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center text-xs">
+                            <i class="fa-solid fa-table-list"></i>
+                        </span>
+                        Список працівників
+                    </h2>
+                    
+                    <div class="flex items-center gap-2">
+                        <!-- Search Box -->
+                        <div class="relative flex-1 sm:w-36">
+                            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                            <input type="text" id="search-input" oninput="handleSearch(this.value)" placeholder="Пошук..." 
+                                   class="w-full bg-dark-900 border border-slate-700/80 rounded-lg pl-7 pr-2.5 py-1 text-xs text-slate-200 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
+                        </div>
+                        <button onclick="addNewRow()" class="px-2.5 py-1 text-xs font-semibold bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 rounded-lg border border-brand-500/40 transition flex items-center gap-1 whitespace-nowrap">
+                            <i class="fa-solid fa-plus text-[10px]"></i> Додати
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Wrapper -->
+                <div class="flex-1 overflow-y-auto border border-slate-700/60 rounded-xl bg-dark-900/60 custom-scrollbar">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-dark-950/90 text-slate-400 sticky top-0 border-b border-slate-700/80 z-10 backdrop-blur">
+                            <tr>
+                                <th class="p-2.5 w-24 font-semibold">ID</th>
+                                <th class="p-2.5 font-semibold">Прізвище та Ім'я</th>
+                                <th class="p-2.5 w-28 font-semibold">Пароль</th>
+                                <th class="p-2.5 w-9 text-center font-semibold"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-slate-800/60">
+                            <!-- Dynamic rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer info badge -->
+                <div class="mt-3.5 p-3 bg-brand-500/10 border border-brand-500/20 rounded-xl text-xs text-brand-300 flex items-start gap-2.5">
+                    <i class="fa-solid fa-circle-info mt-0.5 text-brand-400 text-sm flex-shrink-0"></i>
+                    <span class="leading-relaxed">
+                        Формат друку — <strong>A4 Landscape (Альбомна)</strong>. На одному аркуші автоматично розміщуються <strong>10 вертикальних карт</strong> (5х2).
+                    </span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Side: Live Page Preview -->
+        <div class="lg:col-span-7 flex flex-col items-center">
+            
+            <!-- Toolbar -->
+            <div class="no-print w-full flex items-center justify-between mb-4 glass-panel px-4 py-3 rounded-2xl shadow-xl">
+                <div class="text-xs sm:text-sm font-semibold text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-eye text-brand-400"></i>
+                    <span>Попередній перегляд</span>
+                    <span class="bg-dark-900 border border-slate-700 text-slate-400 text-xs px-2 py-0.5 rounded-md font-mono" id="page-count">0 сторінок</span>
+                </div>
+                <div class="text-xs text-slate-400 flex items-center gap-2 font-medium">
+                    <span class="inline-block w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                    <span>100% Масштаб для друку</span>
+                </div>
+            </div>
+
+            <!-- Preview Scroll Container -->
+            <div id="preview-container" class="w-full flex flex-col items-center overflow-x-auto pb-12 transition-all">
+                <!-- A4 Pages render dynamically here -->
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- ADMIN MODAL (No Print) -->
+    <div id="admin-modal" class="no-print fixed inset-0 bg-dark-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="glass-panel border border-slate-700/80 bg-dark-900/95 max-w-4xl w-full rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[85vh]">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-700/80 flex items-center justify-between bg-dark-950/50">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-user-shield"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base text-white">Панель Адміністратора</h3>
+                        <p class="text-xs text-slate-400">Керування доступом та перегляд журналів друку</p>
+                    </div>
+                </div>
+                <button onclick="toggleAdminModal(false)" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-slate-800 bg-dark-950/30 px-6">
+                <button id="admin-tab-requests-btn" onclick="switchAdminTab('requests')" class="py-3 px-4 border-b-2 border-brand-400 text-brand-400 font-bold text-xs flex items-center gap-2">
+                    <i class="fa-solid fa-user-clock"></i>
+                    <span>Запити на реєстрацію</span>
+                    <span id="requests-badge-count" class="bg-rose-500/20 text-rose-300 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+                </button>
+                <button id="admin-tab-logs-btn" onclick="switchAdminTab('logs')" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white font-bold text-xs flex items-center gap-2">
+                    <i class="fa-solid fa-receipt"></i>
+                    <span>Журнал друку (Audit Log)</span>
+                </button>
+            </div>
+
+            <!-- Tab 1: Requests -->
+            <div id="admin-tab-requests" class="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                <div class="overflow-x-auto border border-slate-800 rounded-xl bg-dark-950/40">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-dark-950 text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="p-3 font-semibold">ID користувача</th>
+                                <th class="p-3 font-semibold">Дата запиту</th>
+                                <th class="p-3 font-semibold">Статус</th>
+                                <th class="p-3 font-semibold text-right">Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody id="requests-table-body" class="divide-y divide-slate-800/60">
+                            <!-- Dynamic Pending Requests -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab 2: Print Logs -->
+            <div id="admin-tab-logs" class="p-6 overflow-y-auto flex-1 custom-scrollbar hidden">
+                <div class="overflow-x-auto border border-slate-800 rounded-xl bg-dark-950/40">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-dark-950 text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="p-3 font-semibold">Дата та Час</th>
+                                <th class="p-3 font-semibold">Користувач ID</th>
+                                <th class="p-3 font-semibold">Кількість бейджів</th>
+                                <th class="p-3 font-semibold">Деталі (Надруковані ID)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body" class="divide-y divide-slate-800/60">
+                            <!-- Dynamic Print Logs -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal Instruction Window (No Print) -->
+    <div id="instruction-modal" class="no-print fixed inset-0 bg-dark-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="glass-panel border border-slate-700/80 bg-dark-900/95 max-w-2xl w-full rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-700/80 flex items-center justify-between bg-dark-950/50">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-book-open"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base text-white">Інструкція користування</h3>
+                        <p class="text-xs text-slate-400">Покрокове керівництво з підготовки та друку бейджів</p>
+                    </div>
+                </div>
+                <button onclick="toggleInstructionModal(false)" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Scrollable) -->
+            <div class="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm text-slate-300 leading-relaxed custom-scrollbar">
+                
+                <!-- Step 1 -->
+                <div class="flex gap-4 items-start">
+                    <div class="w-7 h-7 rounded-full bg-brand-500/20 text-brand-400 font-bold flex items-center justify-center flex-shrink-0 text-xs border border-brand-500/40">1</div>
+                    <div>
+                        <h4 class="font-bold text-white text-sm mb-1">Підготовка файлу даних (Excel або CSV)</h4>
+                        <p class="text-slate-400 mb-2">Файл повинен містити 3 класичні колонки в такому порядку:</p>
+                        <div class="bg-dark-950 p-2.5 rounded-lg border border-slate-800 font-mono text-xs text-brand-300 space-y-1">
+                            <div>• Колонка 1: <strong class="text-white">ID</strong> (напр., 60121553)</div>
+                            <div>• Колонка 2: <strong class="text-white">Прізвище Ім'я</strong> (напр., Anna Shepera)</div>
+                            <div>• Колонка 3: <strong class="text-white">Пароль</strong> (напр., Pass1234)</div>
+                        </div>
+                        <p class="text-slate-400 text-xs mt-2">Ви також можете завантажити готовий тестовий CSV шаблон, натиснувши кнопку <strong>"Шаблон CSV"</strong> у верхній панелі.</p>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="flex gap-4 items-start">
+                    <div class="w-7 h-7 rounded-full bg-brand-500/20 text-brand-400 font-bold flex items-center justify-center flex-shrink-0 text-xs border border-brand-500/40">2</div>
+                    <div>
+                        <h4 class="font-bold text-white text-sm mb-1">Завантаження або Ручне введення</h4>
+                        <p class="text-slate-400">Перетягніть готовий файл <strong>.xlsx, .xls або .csv</strong> у відповідну зону завантаження або клікніть по ній для вибору файлу. Також ви можете додавати та коригувати запису вручну через кнопку <strong>"Додати"</strong>.</p>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="flex gap-4 items-start">
+                    <div class="w-7 h-7 rounded-full bg-brand-500/20 text-brand-400 font-bold flex items-center justify-center flex-shrink-0 text-xs border border-brand-500/40">3</div>
+                    <div>
+                        <h4 class="font-bold text-white text-sm mb-1">Перевірка та пошук</h4>
+                        <p class="text-slate-400">Всі завантажені дані відобразяться в списку. Ви можете легко редагувати будь-яке поле просто клікнувши по ньому, або скористатися полем <strong>"Пошук..."</strong> для швидкої фільтрації співробітників.</p>
+                    </div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="flex gap-4 items-start">
+                    <div class="w-7 h-7 rounded-full bg-brand-500/20 text-brand-400 font-bold flex items-center justify-center flex-shrink-0 text-xs border border-brand-500/40">4</div>
+                    <div>
+                        <h4 class="font-bold text-white text-sm mb-1">Налаштування друку (Критично важливо!)</h4>
+                        <p class="text-slate-400 mb-2">Натисніть кнопку <strong>"Друк / PDF"</strong>. У системному вікні друку вашого браузера обов'язково встановіть наступні параметри:</p>
+                        <ul class="space-y-1.5 bg-dark-950 p-3 rounded-lg border border-slate-800 text-xs text-slate-300">
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> Орієнтація: <strong class="text-white">Альбомна (Landscape)</strong></li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> Розмір паперу: <strong class="text-white">A4</strong></li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> Поля (Margins): <strong class="text-white">Відсутні (None) або За замовчуванням</strong></li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> Масштаб (Scale): <strong class="text-white">100% (Персоналізований)</strong></li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400"></i> Фонові графики: <strong class="text-white">Увімкнено (Background graphics)</strong></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Tech specs -->
+                <div class="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-200 space-y-1">
+                    <div class="font-bold flex items-center gap-1.5 text-amber-400">
+                        <i class="fa-solid fa-ruler-combined"></i> Технічні геометричні параметри:
+                    </div>
+                    <div>• Формат аркуша: <strong>A4 Landscape (297мм × 210мм)</strong></div>
+                    <div>• Розмір бейджа: <strong>52мм × 92мм</strong> (точно для вирізання)</div>
+                    <div>• Кількість карт на аркуші: <strong>10 штук</strong> (сітка 5 в ряд × 2 ряди)</div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3.5 border-t border-slate-700/80 bg-dark-950/50 flex justify-end">
+                <button onclick="toggleInstructionModal(false)" class="px-4 py-2 text-xs font-semibold bg-brand-500 hover:bg-brand-400 text-white rounded-xl transition">
+                    Зрозуміло, закрити
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Toast Notification Box -->
+    <div id="toast" class="no-print fixed bottom-5 right-5 bg-dark-800 text-white border border-brand-500/40 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 transform translate-y-20 opacity-0 z-50">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-brand-400 text-lg"></i>
+        <span id="toast-msg" class="text-xs font-medium">Повідомлення</span>
+    </div>
+
+    <script>
+        // Global App State
+        let usersData = [];
+        let searchQuery = '';
+        let currentUser = null;
+
+        // DOM Elements
+        const tableBody = document.getElementById('table-body');
+        const previewContainer = document.getElementById('preview-container');
+        const recordCountEl = document.getElementById('record-count');
+        const pageCountEl = document.getElementById('page-count');
+        const csvFileInput = document.getElementById('csv-file-input');
+        const dropZone = document.getElementById('drop-zone');
+
+        // Initial setup on DOM ready
+        window.addEventListener('DOMContentLoaded', () => {
+            renderTable();
+            renderBadges();
+            setupFileImport();
+            checkSession();
+        });
+
+        /* --- AUTH & USER MANAGEMENT --- */
+
+        function checkSession() {
+            const saved = localStorage.getItem('dc3_badge_user');
+            if (saved) {
+                currentUser = JSON.parse(saved);
+                verifyUserWithDB(currentUser.id);
+            } else {
+                showAuthOverlay(true);
+            }
+        }
+
+        function verifyUserWithDB(userId) {
+            if (!window.db) {
+                setTimeout(() => verifyUserWithDB(userId), 500);
+                return;
+            }
+
+            const { doc, getDoc, setDoc } = window.firebaseFirestore || {};
+            // Direct collection path RULE 1
+            const userDocRef = doc(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users', userId);
+
+            // Default fallback for super-admin "admin"
+            if (userId === 'admin') {
+                currentUser = { id: 'admin', isAdmin: true, status: 'approved' };
+                onUserLoginSuccess();
+                return;
+            }
+
+            import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(mod => {
+                mod.getDoc(mod.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users', userId)).then(snap => {
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        currentUser = { id: userId, ...data };
+                        if (currentUser.status === 'approved') {
+                            onUserLoginSuccess();
+                        } else if (currentUser.status === 'pending') {
+                            showPendingState();
+                        } else {
+                            showToast('Ваш доступ було відхилено адміністратором', 'fa-circle-xmark');
+                            logout();
+                        }
+                    } else {
+                        logout();
+                    }
+                }).catch(err => {
+                    console.error("User fetch error:", err);
+                    onUserLoginSuccess(); // fallback offline mode
+                });
+            });
+        }
+
+        function switchAuthTab(tab) {
+            const loginForm = document.getElementById('login-form');
+            const regForm = document.getElementById('register-form');
+            const title = document.getElementById('auth-title');
+            const subtitle = document.getElementById('auth-subtitle');
+
+            if (tab === 'register') {
+                loginForm.classList.add('hidden');
+                regForm.classList.remove('hidden');
+                title.innerText = 'Реєстрація';
+                subtitle.innerText = 'Створіть запит на доступ до системи';
+            } else {
+                regForm.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+                title.innerText = 'Вхід у систему';
+                subtitle.innerText = 'Введіть ваш ID та пароль для доступу';
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const id = document.getElementById('login-id').value.trim();
+            const pass = document.getElementById('login-pass').value.trim();
+
+            if (!id || !pass) return;
+
+            // Admin bypass default check
+            if (id === 'admin' && pass === 'admin123') {
+                currentUser = { id: 'admin', isAdmin: true, status: 'approved' };
+                saveSession();
+                onUserLoginSuccess();
+                return;
+            }
+
+            // Check in Firestore app_users
+            import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(async mod => {
+                const userRef = mod.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users', id);
+                const snap = await mod.getDoc(userRef);
+
+                if (snap.exists()) {
+                    const uData = snap.data();
+                    if (uData.pass === pass) {
+                        currentUser = { id, ...uData };
+                        saveSession();
+                        if (uData.status === 'approved') {
+                            onUserLoginSuccess();
+                        } else if (uData.status === 'pending') {
+                            showPendingState();
+                        } else {
+                            showToast('Ваш доступ відхилено адміністратором', 'fa-circle-xmark');
+                        }
+                    } else {
+                        showToast('Невірний пароль', 'fa-triangle-exclamation');
+                    }
+                } else {
+                    showToast('Користувача не знайдено', 'fa-user-slash');
+                }
+            });
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const id = document.getElementById('reg-id').value.trim();
+            const pass = document.getElementById('reg-pass').value.trim();
+            const confirmPass = document.getElementById('reg-pass-confirm').value.trim();
+
+            if (pass !== confirmPass) {
+                showToast('Паролі не збігаються!', 'fa-triangle-exclamation');
+                return;
+            }
+
+            if (pass.length < 4) {
+                showToast('Пароль закороткий (хв. 4 символи)', 'fa-triangle-exclamation');
+                return;
+            }
+
+            import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(async mod => {
+                const userRef = mod.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users', id);
+                const snap = await mod.getDoc(userRef);
+
+                if (snap.exists()) {
+                    showToast('Користувач з таким ID вже існує', 'fa-user-gear');
+                    return;
+                }
+
+                const newUser = {
+                    id: id,
+                    pass: pass,
+                    status: 'pending',
+                    isAdmin: false,
+                    createdAt: new Date().toISOString()
+                };
+
+                await mod.setDoc(userRef, newUser);
+                currentUser = newUser;
+                saveSession();
+                showPendingState();
+                showToast('Запит успішно надіслано!', 'fa-paper-plane');
+            });
+        }
+
+        function saveSession() {
+            localStorage.setItem('dc3_badge_user', JSON.stringify(currentUser));
+        }
+
+        function logout() {
+            localStorage.removeItem('dc3_badge_user');
+            currentUser = null;
+            document.getElementById('pending-box').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+            showAuthOverlay(true);
+            showToast('Ви вийшли з системи', 'fa-right-from-bracket');
+        }
+
+        function showPendingState() {
+            showAuthOverlay(true);
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('pending-box').classList.remove('hidden');
+        }
+
+        function onUserLoginSuccess() {
+            showAuthOverlay(false);
+            document.getElementById('current-user-display').innerText = currentUser.id;
+
+            if (currentUser.isAdmin) {
+                document.getElementById('admin-panel-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('admin-panel-btn').classList.add('hidden');
+            }
+
+            showToast(`Ласкаво просимо, ${currentUser.id}!`, 'fa-circle-check');
+            listenToAdminData();
+        }
+
+        function showAuthOverlay(show) {
+            const overlay = document.getElementById('auth-overlay');
+            if (show) {
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
+
+        /* --- ADMIN PANEL & FIRESTORE AUDIT --- */
+
+        function toggleAdminModal(show) {
+            const modal = document.getElementById('admin-modal');
+            if (show) {
+                modal.classList.remove('hidden');
+                setTimeout(() => modal.classList.remove('opacity-0'), 10);
+            } else {
+                modal.classList.add('opacity-0');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        }
+
+        function switchAdminTab(tab) {
+            const reqBtn = document.getElementById('admin-tab-requests-btn');
+            const logsBtn = document.getElementById('admin-tab-logs-btn');
+            const reqTab = document.getElementById('admin-tab-requests');
+            const logsTab = document.getElementById('admin-tab-logs');
+
+            if (tab === 'requests') {
+                reqBtn.className = 'py-3 px-4 border-b-2 border-brand-400 text-brand-400 font-bold text-xs flex items-center gap-2';
+                logsBtn.className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white font-bold text-xs flex items-center gap-2';
+                reqTab.classList.remove('hidden');
+                logsTab.classList.add('hidden');
+            } else {
+                logsBtn.className = 'py-3 px-4 border-b-2 border-brand-400 text-brand-400 font-bold text-xs flex items-center gap-2';
+                reqBtn.className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white font-bold text-xs flex items-center gap-2';
+                logsTab.classList.remove('hidden');
+                reqTab.classList.add('hidden');
+            }
+        }
+
+        function listenToAdminData() {
+            if (!currentUser || !currentUser.isAdmin) return;
+
+            import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(mod => {
+                // Listen to users for requests
+                const usersCol = mod.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users');
+                mod.onSnapshot(usersCol, (snapshot) => {
+                    const reqBody = document.getElementById('requests-table-body');
+                    reqBody.innerHTML = '';
+                    let pendingCount = 0;
+
+                    snapshot.forEach(docSnap => {
+                        const u = docSnap.data();
+                        if (u.status === 'pending') {
+                            pendingCount++;
+                            const tr = document.createElement('tr');
+                            tr.className = 'hover:bg-dark-900/50 transition';
+                            tr.innerHTML = `
+                                <td class="p-3 font-semibold text-white">${escapeHtml(u.id)}</td>
+                                <td class="p-3 text-slate-400">${new Date(u.createdAt || Date.now()).toLocaleString()}</td>
+                                <td class="p-3"><span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold">Очікує</span></td>
+                                <td class="p-3 text-right space-x-2">
+                                    <button onclick="setUserStatus('${u.id}', 'approved')" class="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded border border-emerald-500/30 transition font-bold text-[11px]">
+                                        <i class="fa-solid fa-check mr-1"></i> Схвалити
+                                    </button>
+                                    <button onclick="setUserStatus('${u.id}', 'rejected')" class="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded border border-rose-500/30 transition font-bold text-[11px]">
+                                        <i class="fa-solid fa-xmark mr-1"></i> Відхилити
+                                    </button>
+                                </td>
+                            `;
+                            reqBody.appendChild(tr);
+                        }
+                    });
+
+                    document.getElementById('requests-badge-count').innerText = pendingCount;
+                    if (pendingCount === 0) {
+                        reqBody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500">Немає очікуючих запитів</td></tr>`;
+                    }
+                }, err => console.error("Admin user sub error:", err));
+
+                // Listen to print_logs
+                const logsCol = mod.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'print_logs');
+                mod.onSnapshot(logsCol, (snapshot) => {
+                    const logsBody = document.getElementById('logs-table-body');
+                    logsBody.innerHTML = '';
+                    const logs = [];
+
+                    snapshot.forEach(docSnap => {
+                        logs.push(docSnap.data());
+                    });
+
+                    // Sort in memory RULE 2
+                    logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                    if (logs.length === 0) {
+                        logsBody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500">Журнал друку порожній</td></tr>`;
+                        return;
+                    }
+
+                    logs.forEach(log => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-dark-900/50 transition';
+                        tr.innerHTML = `
+                            <td class="p-3 text-slate-400">${new Date(log.timestamp).toLocaleString()}</td>
+                            <td class="p-3 font-bold text-brand-400">${escapeHtml(log.userId || 'Guest')}</td>
+                            <td class="p-3 font-semibold text-white">${log.count} шт</td>
+                            <td class="p-3 text-slate-300 font-mono text-[11px] max-w-xs truncate" title="${escapeHtml(log.printedIds || '')}">
+                                ${escapeHtml(log.printedIds || '-')}
+                            </td>
+                        `;
+                        logsBody.appendChild(tr);
+                    });
+                }, err => console.error("Logs sub error:", err));
+            });
+        }
+
+        function setUserStatus(userId, status) {
+            import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(async mod => {
+                const userRef = mod.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users', userId);
+                await mod.updateDoc(userRef, { status });
+                showToast(`Користувача ${userId}: ${status === 'approved' ? 'Схвалено' : 'Відхилено'}`, 'fa-user-check');
+            });
+        }
+
+        async function logPrintAction() {
+            if (usersData.length === 0) return;
+
+            const idsList = usersData.map(u => `${u.id} (${u.name})`).join(', ');
+            const logEntry = {
+                userId: currentUser ? currentUser.id : 'Guest',
+                timestamp: new Date().toISOString(),
+                count: usersData.length,
+                printedIds: idsList
+            };
+
+            import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(async mod => {
+                const logsCol = mod.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'print_logs');
+                await mod.addDoc(logsCol, logEntry);
+            }).catch(e => console.error("Logging print failed:", e));
+        }
+
+        /* --- UI & TABLE UTILS --- */
+
+        function toggleInstructionModal(show) {
+            const modal = document.getElementById('instruction-modal');
+            if (show) {
+                modal.classList.remove('hidden');
+                setTimeout(() => modal.classList.remove('opacity-0'), 10);
+            } else {
+                modal.classList.add('opacity-0');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        }
+
+        function handleSearch(val) {
+            searchQuery = val.toLowerCase().trim();
+            renderTable();
+        }
+
+        function renderTable() {
+            tableBody.innerHTML = '';
+            
+            const filtered = usersData.filter(user => 
+                user.id.toLowerCase().includes(searchQuery) ||
+                user.name.toLowerCase().includes(searchQuery) ||
+                user.pass.toLowerCase().includes(searchQuery)
+            );
+
+            if (usersData.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="p-8 text-center text-slate-500">
+                            <i class="fa-solid fa-folder-open text-2xl mb-2 text-slate-600 block"></i>
+                            <span class="font-medium text-slate-400">Список порожній</span>
+                            <span class="block text-[11px] text-slate-500 mt-1">Завантажте файл Excel/CSV або додайте запис вручну</span>
+                        </td>
+                    </tr>
+                `;
+            } else if (filtered.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="p-6 text-center text-slate-500">
+                            <i class="fa-solid fa-magnifying-glass text-lg mb-1 block"></i>
+                            За вашим запитом нічого не знайдено
+                        </td>
+                    </tr>
+                `;
+            } else {
+                filtered.forEach((user) => {
+                    const originalIndex = usersData.indexOf(user);
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-dark-800/50 transition-colors group';
+                    tr.innerHTML = `
+                        <td class="p-1.5">
+                            <input type="text" value="${escapeHtml(user.id)}" oninput="updateRow(${originalIndex}, 'id', this.value)" 
+                                   class="w-full bg-dark-950 border border-slate-700/70 rounded-md px-2 py-1 text-xs text-slate-100 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
+                        </td>
+                        <td class="p-1.5">
+                            <input type="text" value="${escapeHtml(user.name)}" oninput="updateRow(${originalIndex}, 'name', this.value)" 
+                                   class="w-full bg-dark-950 border border-slate-700/70 rounded-md px-2 py-1 text-xs text-slate-100 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
+                        </td>
+                        <td class="p-1.5">
+                            <input type="text" value="${escapeHtml(user.pass)}" oninput="updateRow(${originalIndex}, 'pass', this.value)" 
+                                   class="w-full bg-dark-950 border border-slate-700/70 rounded-md px-2 py-1 text-xs text-slate-100 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
+                        </td>
+                        <td class="p-1.5 text-center">
+                            <button onclick="deleteRow(${originalIndex})" class="text-slate-500 hover:text-rose-400 opacity-60 group-hover:opacity-100 transition p-1 rounded" title="Видалити">
+                                <i class="fa-solid fa-xmark text-sm"></i>
+                            </button>
+                        </td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+
+            recordCountEl.innerText = `Записів: ${usersData.length}`;
+        }
+
+        function updateRow(index, field, value) {
+            usersData[index][field] = value;
+            renderBadges();
+        }
+
+        function addNewRow() {
+            usersData.push({ id: "60120000", name: "Новий Працівник", pass: "123456" });
+            renderTable();
+            renderBadges();
+            showToast('Додано новий рядок', 'fa-plus');
+        }
+
+        function deleteRow(index) {
+            usersData.splice(index, 1);
+            renderTable();
+            renderBadges();
+            showToast('Запис видалено', 'fa-trash');
+        }
+
+        function clearAllData() {
+            if (usersData.length === 0) return;
+            usersData = [];
+            renderTable();
+            renderBadges();
+            showToast('Всі дані очищено', 'fa-broom');
+        }
+
+        /* --- BADGE RENDER & QR CODES --- */
+
+        function renderBadges() {
+            previewContainer.innerHTML = '';
+
+            if (usersData.length === 0) {
+                previewContainer.innerHTML = `
+                    <div class="p-12 text-center text-slate-500 glass-panel rounded-2xl border border-slate-700/60 max-w-md w-full my-8">
+                        <div class="w-16 h-16 rounded-full bg-slate-800/80 text-slate-500 flex items-center justify-center mx-auto mb-4 border border-slate-700">
+                            <i class="fa-solid fa-id-card text-3xl"></i>
+                        </div>
+                        <p class="text-base font-semibold text-slate-300">Немає даних для бейджів</p>
+                        <p class="text-xs text-slate-400 mt-1">Додайте працівників або завантажте Excel / CSV файл</p>
+                    </div>
+                `;
+                pageCountEl.innerText = '0 сторінок';
+                return;
+            }
+
+            const pageSize = 10;
+            const pageCount = Math.ceil(usersData.length / pageSize);
+            pageCountEl.innerText = `${pageCount} ${pageCount === 1 ? 'сторінка' : 'сторінок'}`;
+
+            for (let p = 0; p < pageCount; p++) {
+                const pageUsers = usersData.slice(p * pageSize, (p + 1) * pageSize);
+
+                const pageEl = document.createElement('div');
+                pageEl.className = 'a4-page';
+
+                const gridEl = document.createElement('div');
+                gridEl.className = 'badges-grid';
+
+                pageUsers.forEach((user, idx) => {
+                    const badgeEl = createBadgeHtml(user, `p${p}_b${idx}`);
+                    gridEl.appendChild(badgeEl);
+                });
+
+                pageEl.appendChild(gridEl);
+                previewContainer.appendChild(pageEl);
+
+                pageUsers.forEach((user, idx) => {
+                    generateQrCodesForBadge(user, `p${p}_b${idx}`);
+                });
+            }
+        }
+
+        function createBadgeHtml(user, uid) {
+            const card = document.createElement('div');
+            card.className = 'badge';
+            card.innerHTML = `
+                <div class="badge-header">
+                    <div class="dc3-box">DC3</div>
+                    <div class="outsort-box">outsort</div>
+                </div>
+
+                <div class="badge-user-info">
+                    <div class="badge-name">${escapeHtml(user.name || '')}</div>
+                    <div class="badge-id">${escapeHtml(user.id || '')}</div>
+                </div>
+
+                <div class="qr-section-top">
+                    <div id="qr-login-${uid}" class="qr-container"></div>
+                    <div class="qr-label">LOGIN</div>
+                </div>
+
+                <div class="qr-section-bottom">
+                    <div class="qr-sub-box">
+                        <div id="qr-name-${uid}" class="qr-container"></div>
+                        <div class="qr-label">NAME</div>
+                    </div>
+                    <div class="qr-sub-box">
+                        <div id="qr-pass-${uid}" class="qr-container"></div>
+                        <div class="qr-label">PASSWORD</div>
+                    </div>
+                </div>
+            `;
+            return card;
+        }
+
+        function generateQrCodesForBadge(user, uid) {
+            const loginBox = document.getElementById(`qr-login-${uid}`);
+            const nameBox = document.getElementById(`qr-name-${uid}`);
+            const passBox = document.getElementById(`qr-pass-${uid}`);
+
+            if (!loginBox || !nameBox || !passBox) return;
+
+            loginBox.innerHTML = '';
+            nameBox.innerHTML = '';
+            passBox.innerHTML = '';
+
+            new QRCode(loginBox, {
+                text: user.id || ' ',
+                width: 88,
+                height: 88,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+
+            new QRCode(nameBox, {
+                text: user.name || ' ',
+                width: 50,
+                height: 50,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.L
+            });
+
+            new QRCode(passBox, {
+                text: user.pass || ' ',
+                width: 50,
+                height: 50,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.L
+            });
+        }
+
+        /* --- FILE IMPORTS --- */
+
+        function setupFileImport() {
+            dropZone.addEventListener('click', () => csvFileInput.click());
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drop-zone-active');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('drop-zone-active');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drop-zone-active');
+                if (e.dataTransfer.files.length) {
+                    handleFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            csvFileInput.addEventListener('change', (e) => {
+                if (e.target.files.length) {
+                    handleFile(e.target.files[0]);
+                }
+            });
+        }
+
+        function handleFile(file) {
+            const fileName = file.name.toLowerCase();
+
+            if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                        
+                        processParsedData(rows);
+                    } catch (err) {
+                        showToast('Помилка при зчитуванні файлу Excel', 'fa-triangle-exclamation');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                Papa.parse(file, {
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        if (results.data) {
+                            processParsedData(results.data);
+                        }
+                    }
+                });
+            }
+        }
+
+        function processParsedData(rows) {
+            if (!rows || rows.length === 0) {
+                showToast('Файл порожній', 'fa-triangle-exclamation');
+                return;
+            }
+
+            const newUsers = [];
+            rows.forEach((row, i) => {
+                if (!row || row.length === 0) return;
+
+                const firstCol = String(row[0] || '').trim();
+                const secondCol = String(row[1] || '').trim();
+
+                if (i === 0 && (firstCol.toLowerCase().includes('id') || secondCol.toLowerCase().includes('прізвище') || secondCol.toLowerCase().includes('name'))) {
+                    return;
+                }
+
+                if (row.length >= 3) {
+                    newUsers.push({
+                        id: String(row[0] || '').trim(),
+                        name: String(row[1] || '').trim(),
+                        pass: String(row[2] || '').trim()
+                    });
+                }
+            });
+
+            if (newUsers.length > 0) {
+                usersData = newUsers;
+                renderTable();
+                renderBadges();
+                showToast(`Успішно завантажено ${newUsers.length} працівників`, 'fa-file-excel');
+            } else {
+                showToast('Формат файлу некоректний. Потрібно мін. 3 колонки', 'fa-triangle-exclamation');
+            }
+        }
+
+        function downloadSampleCSV() {
+            const csvContent = "data:text/csv;charset=utf-8," 
+                + "ID,Прізвище Ім'я,Пароль\n"
+                + "60121553,Anna Shepera,Pass1234\n"
+                + "60121554,Ivan Kovalenko,Qwerty99\n"
+                + "60121555,Maria Petrenko,Secu9876\n";
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "sample_outsort_badges.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Шаблон CSV завантажено', 'fa-download');
+        }
+
+        function triggerPrint() {
+            if (usersData.length === 0) {
+                showToast('Додайте працівників перед друком!', 'fa-circle-exclamation');
+                return;
+            }
+            logPrintAction();
+            window.print();
+        }
+
+        function showToast(msg, icon = 'fa-circle-check') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-msg');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMsg.innerText = msg;
+            toastIcon.className = `fa-solid ${icon} text-brand-400 text-lg`;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.innerText = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
