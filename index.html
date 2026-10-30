@@ -377,7 +377,7 @@
                     <label class="block text-xs font-semibold text-slate-300 mb-1.5">ID користувача</label>
                     <div class="relative">
                         <i class="fa-solid fa-id-card absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-                        <input type="text" id="login-id" required placeholder="Наприклад: admin або 60121553"
+                        <input type="text" id="login-id" required placeholder="Введіть ваш ID (напр. 60121553)"
                                class="w-full bg-dark-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition">
                     </div>
                 </div>
@@ -911,36 +911,95 @@
 
             if (!id || !pass) return;
 
-            // Admin bypass default check
-            if (id === 'admin' && pass === 'admin123') {
-                currentUser = { id: 'admin', isAdmin: true, status: 'approved' };
-                saveSession();
-                onUserLoginSuccess();
+            import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(async mod => {
+                try {
+                    const userRef = mod.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users', id);
+                    const snap = await mod.getDoc(userRef);
+
+                    if (!snap.exists()) {
+                        showToast('Користувача не знайдено. Будь ласка, зареєструйтесь!', 'fa-user-plus');
+                        setTimeout(() => switchAuthTab('register'), 1200);
+                        return;
+                    }
+
+                    const uData = snap.data();
+                    if (uData.pass !== pass) {
+                        showToast('Невірний пароль! Перевірте правильність введення.', 'fa-triangle-exclamation');
+                        return;
+                    }
+
+                    currentUser = { id, ...uData };
+                    saveSession();
+
+                    if (uData.status === 'approved') {
+                        onUserLoginSuccess();
+                    } else if (uData.status === 'pending') {
+                        showPendingState();
+                        showToast('Ваш акаунт очікує підтвердження адміністратором', 'fa-clock');
+                    } else {
+                        showToast('Ваш доступ відхилено адміністратором', 'fa-circle-xmark');
+                    }
+                } catch (err) {
+                    console.error("Login error:", err);
+                    showToast('Помилка авторизації. Спробуйте пізніше.', 'fa-triangle-exclamation');
+                }
+            });
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const id = document.getElementById('reg-id').value.trim();
+            const pass = document.getElementById('reg-pass').value.trim();
+            const confirmPass = document.getElementById('reg-pass-confirm').value.trim();
+
+            if (pass !== confirmPass) {
+                showToast('Паролі не збігаються!', 'fa-triangle-exclamation');
                 return;
             }
 
-            // Check in Firestore app_users
-            import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(async mod => {
-                const userRef = mod.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users', id);
-                const snap = await mod.getDoc(userRef);
+            if (pass.length < 4) {
+                showToast('Пароль закороткий (хв. 4 символи)', 'fa-triangle-exclamation');
+                return;
+            }
 
-                if (snap.exists()) {
-                    const uData = snap.data();
-                    if (uData.pass === pass) {
-                        currentUser = { id, ...uData };
-                        saveSession();
-                        if (uData.status === 'approved') {
-                            onUserLoginSuccess();
-                        } else if (uData.status === 'pending') {
-                            showPendingState();
-                        } else {
-                            showToast('Ваш доступ відхилено адміністратором', 'fa-circle-xmark');
-                        }
-                    } else {
-                        showToast('Невірний пароль', 'fa-triangle-exclamation');
+            import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(async mod => {
+                try {
+                    const userRef = mod.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users', id);
+                    const snap = await mod.getDoc(userRef);
+
+                    if (snap.exists()) {
+                        showToast('Користувач з таким ID вже існує! Увійдіть.', 'fa-user-gear');
+                        setTimeout(() => switchAuthTab('login'), 1200);
+                        return;
                     }
-                } else {
-                    showToast('Користувача не знайдено', 'fa-user-slash');
+
+                    // Перевіряємо, чи це перший користувач у системі
+                    const usersCol = mod.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'app_users');
+                    const allUsersSnap = await mod.getDocs(usersCol);
+                    const isFirstUser = allUsersSnap.empty;
+
+                    const newUser = {
+                        id: id,
+                        pass: pass,
+                        status: isFirstUser ? 'approved' : 'pending',
+                        isAdmin: isFirstUser ? true : false,
+                        createdAt: new Date().toISOString()
+                    };
+
+                    await mod.setDoc(userRef, newUser);
+                    currentUser = newUser;
+                    saveSession();
+
+                    if (isFirstUser) {
+                        showToast('Ви зареєстровані як перший АДМІНІСТРАТОР системи!', 'fa-user-shield');
+                        onUserLoginSuccess();
+                    } else {
+                        showPendingState();
+                        showToast('Запит на реєстрацію успішно надіслано!', 'fa-paper-plane');
+                    }
+                } catch (err) {
+                    console.error("Register error:", err);
+                    showToast('Помилка реєстрації. Спробуйте ще раз.', 'fa-triangle-exclamation');
                 }
             });
         }
